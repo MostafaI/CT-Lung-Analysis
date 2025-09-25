@@ -1,1 +1,1 @@
-# CT-Lung-Segmentation
+# CT-Lung-Analysis
