@@ -1,8 +1,5 @@
 # CT-Lung-Analysis
 
-<<<<<<< HEAD
-This is a work in progress to analyze lung CT images. Start with the notebook.. 
-=======
 CT lung analysis pipeline: DICOM → NIfTI → lung segmentation → air-content visualization.
 
 - **Input:** DICOM image series.
@@ -72,4 +69,3 @@ CT-Lung-Analysis/
 
 ## Contact
 Questions: **mostafai@seas.upenn.edu**
->>>>>>> 2cc2ac1 (new updates .. addeded executables..)
