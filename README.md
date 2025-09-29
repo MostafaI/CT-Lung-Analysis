@@ -1,8 +1,5 @@
 # CT-Lung-Analysis
 
-<<<<<<< HEAD
-This is a work in progress to analyze lung CT images. Start with the notebook.. 
-=======
 CT lung analysis pipeline: DICOM → NIfTI → lung segmentation → air-content visualization.
 
 - **Input:** DICOM image series.
@@ -17,8 +14,6 @@ CT lung analysis pipeline: DICOM → NIfTI → lung segmentation → air-content
 
 ### A) Python API (simple)
 ```python
-from your_module import run  # replace with actual module path
-
 dicom_dir = "/path/to/DICOM_Study_or_Series"
 run(dicom_dir)
 ```
@@ -31,7 +26,7 @@ Analyzing the image...
 Saved the output image in /path/to/Air_content.png
 Program is complete, finished in 51 seconds
 ```
-or (if cached):
+or :
 ```
 NIfTI files are already there... skip.
 Segmentation mask is already there... skip.
@@ -46,27 +41,8 @@ Program is complete, finished in 0 seconds
 - **Lung mask:** `exampleCT_m.nii.gz` (0/1)
 - **Air content PNG:** `exampleCT_air_content.png`
 
-> After running, **inspect the air-content image**. If it looks wrong, open the mask (`*_m.nii.gz`) in ITK-SNAP/3D Slicer and check that the lungs are correctly segmented.
+> After running, **inspect the air-content image**. If it looks wrong, open the mask (`*_m.nii.gz`) in ITK-SNAP and check that the lungs are correctly segmented, Let Mostafa Know if you still need help.
 
----
-
-## Repo Structure (suggested)
-
-```
-CT-Lung-Analysis/
-├── README.md
-├── CT_v1.ipynb                # notebook version
-├── CT_v1.py                   # script version (exported from notebook)
-├── src/
-│   ├── io_utils.py            # DICOM→NIfTI, save/load helpers
-│   ├── seg_lung.py            # lungmask wrapper + fallback
-│   └── viz.py                 # air-content map, overlays
-├── requirements.txt
-└── examples/
-    └── sample_dicom_series/   # (optional)
-```
-
----
 
 
 
