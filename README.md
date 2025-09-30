@@ -19,7 +19,7 @@ CT lung analysis pipeline: DICOM → NIfTI → lung segmentation → air-content
 conda env create -f environment.yml
 ```
 
-
+**Run the code**
 ```python
 dicom_dir = "/path/to/DICOM_Study_or_Series"
 run(dicom_dir)
