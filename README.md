@@ -12,7 +12,6 @@ CT lung analysis pipeline: DICOM → NIfTI → lung segmentation → air-content
 
 ## Usage
 
-### A) Python API (simple)
 ```python
 dicom_dir = "/path/to/DICOM_Study_or_Series"
 run(dicom_dir)
