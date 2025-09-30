@@ -45,7 +45,7 @@ Program is complete, finished in 0 seconds
 ## Outputs
 
 - **NIfTI CT:** `exampleCT.nii.gz`
-- **Lung mask:** `exampleCT_m.nii.gz` (0/1)
+- **Lung mask:** `exampleCT_m.nii.gz` 
 - **Air content PNG:** `exampleCT_air_content.png`
 
 > After running, **inspect the air-content image**. If it looks wrong, open the mask (`*_m.nii.gz`) in ITK-SNAP and check that the lungs are correctly segmented, Let Mostafa Know if you still need help.
