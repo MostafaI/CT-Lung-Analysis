@@ -6,7 +6,7 @@ CT lung analysis pipeline: DICOM → NIfTI → lung segmentation → air-content
 - **Output (same folder as input):**
   - `exampleCT.nii.gz` — converted CT volume (NIfTI)
   - `exampleCT_m.nii.gz` — binary lung mask
-  - `exampleCT_air_content.png` — air-content map (quick QA image)
+  - `exampleCT_air_content.png` — air-content map
 
 ---
 
