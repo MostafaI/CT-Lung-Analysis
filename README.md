@@ -10,7 +10,9 @@ CT lung analysis pipeline: DICOM → NIfTI → lung segmentation → air-content
 
 ---
 
-# 
+## Prebuilt Executable (no Python needed)
+Download the packaged app here:
+https://drive.google.com/file/d/1rYctKpZqqu8hWbmEl3NWBJozXEP9gYs3/view
 
 
 ## Usage
