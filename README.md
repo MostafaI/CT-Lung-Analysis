@@ -16,10 +16,6 @@ https://drive.google.com/file/d/1rYctKpZqqu8hWbmEl3NWBJozXEP9gYs3/view
 
 
 ## Usage
-**Create environment using conda**
-```
-conda env create -f environment.yml
-```
 
 **Run the code**
 ```python
