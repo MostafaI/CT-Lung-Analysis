@@ -1,6 +1,5 @@
 import numpy as np
 import matplotlib
-matplotlib.use('Agg')  # no GUI
 import matplotlib.pyplot as plt
 import nibabel as nib
 import os
@@ -9,7 +8,10 @@ from scipy import ndimage
 import time
 import warnings
 import pydicom
+from scipy.stats import linregress
+import seaborn as sns
 from dicom2nifti.convert_dicom import dicom_series_to_nifti
+import pandas as pd 
 
 # from lungmask import LMInferer
 # import SimpleITK as sitk
@@ -306,48 +308,6 @@ def correct_cropped_images(im):
     return np.array(imout)
 
 
-def get_sorted_subfolders(adir):
-    sorted_time_folders = []
-    time_in_days = []
-    all_folders = os.listdir(adir)
-
-    pre = [x for x in all_folders if "pre" in x]
-    ## Pre and 1 hour are like that
-    if len(pre):
-        sorted_time_folders.append(pre[0])
-        time_in_days.append(0)
-        all_folders.remove(pre[0])
-    hr = [x for x in os.listdir(adir) if "hr" in x]
-    if len(hr):
-        sorted_time_folders.append(hr[0])
-        time_in_days.append(1 / 24)
-        all_folders.remove(hr[0])
-    ## All other dates will be writen in days
-    nums, fnames = [], []
-    for folder in all_folders:
-        if os.path.isdir(os.path.join(adir, folder)):
-            if "day" in folder:
-                nums.append(int(folder.split("__")[-1].split(".")[0].split("day")[0]))
-            elif "week" in folder:
-                nums.append(
-                    int(folder.split("__")[-1].split(".")[0].split("week")[0]) * 7
-                )
-            else:
-                raise Exception(
-                    "this file:" + folder + " doesnt contain the words day or week!!"
-                )
-            fnames.append(folder)
-
-    # resort based on days
-    ones_sorted = sorted(zip(nums, fnames))
-
-    # Now append all
-    for alist in ones_sorted:
-        time_in_days.append(alist[0])
-        sorted_time_folders.append(alist[1])
-    return sorted_time_folders, time_in_days
-
-
 def get_maps(
     main_dir,
     num_slices=6,
@@ -485,75 +445,202 @@ def save_image(im, imname, vmin, vmax, cmap="jet", title=""):
     plt.savefig(imname, bbox_inches="tight", dpi=400)
     plt.close()
 
+def get_inter_heterogeneity(im, 
+                            plot=False, 
+                            slice_thickness = 0.1,
+                            percent_to_ignore = 5,
+                            step_size = 1,
+                           savename = ''):
+    # slice_thickness in cm
+    im[np.isnan(im)] = 0
+    im = crop_to_mask(im,0)
+    im[im==0]=np.nan
+    
+    num_coronal_slices=im.shape[1]
+    slices_to_ignore = int(num_coronal_slices * percent_to_ignore/100)
+    slices = []
+    # Define the step size (in this case, 10)
+    slice_thickness *= step_size
+    for i in range(slices_to_ignore, num_coronal_slices - slices_to_ignore, step_size):
+        slices.append(np.nanmean(im[:, i:i + step_size]))
+    y = slices
+    x = np.arange(len(y))
+    slope, intercept, r_value, p_value, std_err = linregress(x, y)
+    if plot or savename !=0:
+        sns.set(style="whitegrid", font_scale=1.5)
+        plt.figure(figsize=(12, 4))  # Adjust the figure size as needed
+        x_range = np.linspace(min(x), max(x), 100)
+        y_line = slope * x_range + intercept
+        plt.plot(x, y, marker='o', linestyle='', label='Data', markersize=5, color='b')
+        plt.plot(x_range, y_line, label=f'Slope = {round(slope/slice_thickness, 4)} /cm', color='r', linewidth=2)
+        plt.xlabel('Coronal Slices')
+        plt.ylabel('Average value per slice')
+        plt.legend()
+        plt.title('Interregional Heterogeneity')
+        if savename != '':
+            plt.savefig(savename, dpi=300, bbox_inches='tight')
+            plt.close()
+    return slope/slice_thickness
 
+def get_intra_heterogeneity(im, 
+                            percent_to_ignore = 5, 
+                            step_size = 1, 
+                            plot=False,
+                           savename = '', 
+                           robust=True):
+    im[np.isnan(im)] = 0
+    im = crop_to_mask(im,0)
+    im[im==0] = np.nan
+    global_mean = np.nanmean(im)
+    num_coronal_slices=im.shape[1]
+    slices_to_ignore = int(num_coronal_slices * percent_to_ignore/100)
+    per_slice_heterogeneities = []
+    for i in range(slices_to_ignore, num_coronal_slices - slices_to_ignore, step_size):
+        per_slice_heterogeneities.append(
+            np.nanstd(im[:, i:i + step_size]) / abs(np.nanmean(im[:, i:i + step_size])))
+        
+    intra = np.mean(per_slice_heterogeneities)
+    if robust: 
+        intra = np.median(per_slice_heterogeneities) 
+        
+    if plot or savename !='':
+        y = per_slice_heterogeneities
+        x = np.arange(len(y))
+        sns.set(style="whitegrid", font_scale=1.5)
+        plt.figure(figsize=(12, 4))  # Adjust the figure size as needed
+        x_range = np.linspace(min(x), max(x), 100)
+        slope, intercept, r_value, p_value, std_err = linregress(x, y)
+        y_line = slope * x_range + intercept
+        plt.plot(x, y, marker='o', linestyle='', label='Data', markersize=5, color='b')
+        plt.plot(x_range, y_line, color='r', linewidth=2)
+        plt.xlabel('Coronal Slices')
+        plt.ylabel('Average std per slice')
+        plt.legend()
+        plt.title('Intraregional Heterogeneity')
+        if savename != '':
+            plt.savefig(savename, dpi=300, bbox_inches='tight')
+            plt.close()
+    return intra
+
+def get_air_content_image(image_nifti_file_path, mask_nifti_file_path, out_image):
+    print("Analyzing the image..")
+    # Loading the images
+    image = nib.load(image_nifti_file_path).get_fdata()
+    mask = nib.load(mask_nifti_file_path).get_fdata()         
+    voxel_sizes = nib.load(image_nifti_file_path).header.get_zooms()
+    masked_image = image * mask
+    cropped_masked_image = crop_to_mask(masked_image, padding=4, im2=None)
+    # Calculate air contenct
+    air_content = cropped_masked_image / -1000
+    air_content[air_content == 0] = np.nan
+    num_slices = 6
+    im = get_x_slices_from_image(
+        air_content,
+        number_of_slices=num_slices,
+        coronal_axis=1,
+        transpose=False,
+        airways=False,
+    )
+    s = 1
+    vmin, vmax = 0, 1
+    fig, axes = plt.subplots(
+        1, num_slices, figsize=(16 * s, 4 * s), dpi=400, facecolor="k"
+    )
+    cbar_ax = fig.add_axes([0.92, 0.2, 0.02, 0.6])  # Adjust the position as needed
+    for i, ax in enumerate(axes):
+        img = ax.imshow(im[i].T, origin="lower", cmap="jet", vmin=vmin, vmax=vmax)
+        ax.axis("off")
+    # Add a single colorbar for the whole figure
+    cbar = fig.colorbar(img, cax=cbar_ax)
+    cbar.set_ticks([vmin, (vmin + vmax) / 2, vmax])
+    cbar.ax.yaxis.set_tick_params(color="white")  # Change tick color
+    plt.setp(plt.getp(cbar.ax, "yticklabels"), color="white", fontsize=20)  # \
+    parent_dir = os.path.dirname(image_nifti_file_path)
+    plt.savefig(out_image, bbox_inches="tight", dpi=400)
+    
 def run(dicom_dir):
     start = time.time()
     parent_dir = os.path.dirname(dicom_dir)
     image_name = os.path.basename(dicom_dir)
-    image_nifti_file_path = os.path.join(parent_dir, image_name + ".nii.gz")
-    mask_nifti_file_path = image_nifti_file_path.replace(".nii", "_m.nii")
-    out_image = os.path.join(parent_dir, image_name + "__air_contect.png")
-
+    out_dir = os.path.join(parent_dir, image_name+'__Analyzed') 
+    if not os.path.isdir(out_dir): os.mkdir(out_dir)
+    image_nifti_file_path = os.path.join(out_dir, image_name + ".nii.gz")
+    mask_nifti_file_path  = image_nifti_file_path.replace(".nii", "_m.nii")
+    out_image = os.path.join(out_dir, image_name + "__air_contect.png")
+    out_image_inter = os.path.join(out_dir, image_name + "__inter.png")
+    out_image_intra = os.path.join(out_dir, image_name + "__intra.png")
+    out_csv = os.path.join(out_dir, image_name + ".csv")
+    
+    #1) ------------Convert DICOM to NIFTI-------------------
     if not os.path.isfile(image_nifti_file_path):
         print("Converting Dicom to NIFT..")
         dicom_series_to_nifti(dicom_dir, image_nifti_file_path)
     else:
         print("NIFTI files are already there..skip..")
-
+        
+    #2) ------------Segmenting the lungs-------------------
     if not os.path.isfile(mask_nifti_file_path):
         print("Segmenting the lungs..")
         extract_ct_mask(image_nifti_file_path, printtolog=False)
     else:
         print("Segmentation mask is already there..skip..")
 
+    #3) ------------Getting the Air content image-------------------
     if not os.path.isfile(out_image):
-        print("Analyzing the image..")
-        # Loading the images
-        image = nib.load(image_nifti_file_path).get_fdata()
-        mask = nib.load(mask_nifti_file_path).get_fdata()
-
-        masked_image = image * mask
-        cropped_masked_image = crop_to_mask(masked_image, padding=4, im2=None)
-
-        # Calculate air contenct
-        air_content = cropped_masked_image / -1000
-        air_content[air_content == 0] = np.nan
-
-        num_slices = 6
-        im = get_x_slices_from_image(
-            air_content,
-            number_of_slices=num_slices,
-            coronal_axis=1,
-            transpose=False,
-            airways=False,
-        )
-
-        s = 1
-        vmin, vmax = 0, 1
-        fig, axes = plt.subplots(
-            1, num_slices, figsize=(16 * s, 4 * s), dpi=400, facecolor="k"
-        )
-        cbar_ax = fig.add_axes([0.92, 0.2, 0.02, 0.6])  # Adjust the position as needed
-        for i, ax in enumerate(axes):
-            img = ax.imshow(im[i].T, origin="lower", cmap="jet", vmin=vmin, vmax=vmax)
-            ax.axis("off")
-        # Add a single colorbar for the whole figure
-        cbar = fig.colorbar(img, cax=cbar_ax)
-        cbar.set_ticks([vmin, (vmin + vmax) / 2, vmax])
-        cbar.ax.yaxis.set_tick_params(color="white")  # Change tick color
-        plt.setp(plt.getp(cbar.ax, "yticklabels"), color="white", fontsize=20)  # \
-        parent_dir = os.path.dirname(image_nifti_file_path)
-        plt.savefig(out_image, bbox_inches="tight", dpi=400)
-        print(
-            f"Saved the output image in {os.path.join(parent_dir, 'Air_contect.png')}"
-        )
+        print("Getting the air content map..")
+        get_air_content_image(image_nifti_file_path, mask_nifti_file_path, out_image)
     else:
-        print(f"The output image (air_content) is already there..skip..")
+        print("The air content image is already there..skip..")
+
+    #4) ------------Getting the Heterogenities-------------------
+    if not os.path.isfile(out_csv):
+        print("Getting the heterogeneity maps..")
+        run_heterogeneity_analysis(image_nifti_file_path, 
+                                                mask_nifti_file_path,
+                                                out_image_inter,
+                                                out_image_intra,
+                                                out_csv)  
+    else:
+        print("The heterogeneity csv file is already there..skip..")
+        
     print(
         "Program is complete, finished in " + str(int(time.time() - start)) + " seconds"
     )
 
+def run_heterogeneity_analysis(image_nifti_file_path, 
+                               mask_nifti_file_path,
+                               out_image_inter,
+                               out_image_intra,
+                               out_csv
+                              ):
+    # Loading the images
+    imagename = os.path.basename(out_csv).replace('.csv','')
+    image = nib.load(image_nifti_file_path).get_fdata()
+    mask = nib.load(mask_nifti_file_path).get_fdata()         
+    voxel_sizes = nib.load(image_nifti_file_path).header.get_zooms()
+    masked_image = image * mask
+    cropped_masked_image = crop_to_mask(masked_image, padding=4, im2=None)
+    
+    inter = get_inter_heterogeneity(cropped_masked_image, 
+                                    plot=False, 
+                                    slice_thickness = voxel_sizes[1],
+                                    percent_to_ignore = 10,
+                                    step_size = 5,
+                                    savename = out_image_inter)
 
+    intra = get_intra_heterogeneity(cropped_masked_image, 
+                            percent_to_ignore = 10, 
+                            step_size = 5, 
+                            plot=False,
+                           savename = out_image_intra)
+
+    df = pd.DataFrame({
+        'Name': ['', 'Inter-heterogeneity', 'Intra-heterogeneity'],
+        'Value': [imagename, inter, intra]
+    })
+    df.to_csv(out_csv, index=False, header=False)
+    return inter, intra
+    
 if __name__ == "__main__":
     dicom_dir = "/Users/mostafaismail/Documents/Carly/S6060_MapleSyrup/S6020"
     dicom_dir = input("Dicom Path: ").strip()
